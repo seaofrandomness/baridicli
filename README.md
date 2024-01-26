@@ -1,2 +1,2 @@
 # baridicli
-Baridimob Baridiweb and now Bardicli
+Baridimob Baridiweb and now Baridicli
