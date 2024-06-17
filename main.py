@@ -1,5 +1,6 @@
 from dotenv import dotenv_values
 from requests import session
+from re import findall
 
 
 class BaridiMob:
@@ -23,4 +24,9 @@ class BaridiMob:
             "Priority": "u=0, i",
             "Connection": "keep-alive"
         })
-        self.session.get(self.domain)
+        response = self.session.get(self.domain)
+        regex = r"id=\"javax\.faces\.ViewState\"\svalue=\"(.*?)\""
+        self.view_state = findall(regex, response.text)[0]
+
+    def login(self):
+        pass
