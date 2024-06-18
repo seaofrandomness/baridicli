@@ -46,16 +46,19 @@ class Baridi:
             }
         )
         if '<redirect url="/rb/web/pages/home.xhtml">' in resp.text:
+            self.session.cookies.set("BrowserTimezone", "GMT+01:00")
             return True
         else:
             return False
 
     def accounts(self):
-        self.session.cookies.set("BrowserTimezone", "GMT+01:00")
         resp = self.session.get(f"{self.domain}/rb/web/pages/accounts.xhtml")
         rip = findall(r"class=\"link\s*text text--h4-header\s*\">(\d{20})", resp.text)[0]
         balance = findall(r"<div class=\"dir-ltr\">(.*\.\d{2}\s*DZD)", resp.text)[0]
         return (rip, balance)
+    
+    def transfers(self, to: str, amount: str):
+        pass
 
 
 # testing
