@@ -3,7 +3,7 @@ from requests import session
 from re import findall
 
 
-class BaridiMob:
+class Baridi:
     def __init__(self):
         self.domain = "https://baridiweb.poste.dz/"
         self.credentials = dotenv_values(".env")
@@ -29,4 +29,36 @@ class BaridiMob:
         self.view_state = findall(regex, response.text)[0]
 
     def login(self):
-        pass
+        resp = self.session.post(
+            f"{self.domain}/rb/web/pages/login.xhtml",
+            data={
+                "javax.faces.partial.ajax": "true",
+                "javax.faces.source": "loginForm:loginButton",
+                "javax.faces.partial.execute": "@all",
+                "javax.faces.partial.render": "loginForm",
+                "loginForm:loginButton": "loginForm:loginButton",
+                "loginForm": "loginForm",
+                "loginForm:loginInput": self.credentials['USER'],
+                "loginForm:passwordHashInput": self.credentials['PASS'],
+                "noClientHashing": "false",
+                "vCode": '',
+                "javax.faces.ViewState": self.view_state
+            }
+        )
+        if '<redirect url="/rb/web/pages/home.xhtml">' in resp.text:
+            return True
+        else:
+            return False
+
+    def accounts(self):
+        self.session.cookies.set("BrowserTimezone", "GMT+01:00")
+        resp = self.session.get(f"{self.domain}/rb/web/pages/accounts.xhtml")
+        rip = findall(r"class=\"link\s*text text--h4-header\s*\">(\d{20})", resp.text)[0]
+        balance = findall(r"<div class=\"dir-ltr\">(.*\.\d{2}\s*DZD)", resp.text)[0]
+        return (rip, balance)
+
+
+# testing
+x = Baridi()
+if x.login():
+    print(x.accounts())
