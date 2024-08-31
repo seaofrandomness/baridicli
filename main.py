@@ -53,15 +53,76 @@ class Baridi:
 
     def accounts(self):
         resp = self.session.get(f"{self.domain}/rb/web/pages/accounts.xhtml")
-        rip = findall(r"class=\"link\s*text text--h4-header\s*\">(\d{20})", resp.text)[0]
+        self.rip = findall(r"class=\"link\s*text text--h4-header\s*\">(\d{20})", resp.text)[0]
         balance = findall(r"<div class=\"dir-ltr\">(.*\.\d{2}\s*DZD)", resp.text)[0]
-        return (rip, balance)
+        return (self.rip, balance)
     
-    def transfers(self, to: str, amount: str):
-        pass
+    def generate_transfer_data(self, source: str, render: str, additional_fields: dict):
+        data = {
+            'javax.faces.partial.ajax': 'true',
+            'javax.faces.source': source,
+            'javax.faces.partial.execute': '@all',
+            'javax.faces.partial.render': render,
+            'javax.faces.ViewState': self.view_state,
+        }
+        data.update(additional_fields)
+        return data
 
+    def transfers(self, rip_dest: str, amount: str):
+        resp = self.session.get(f"{self.domain}/rb/web/pages/transfers.xhtml")
+        j_idt = findall(r'<a id="transferTypesForm:(j_idt\d+)"', resp.text)[0]
+
+        # First POST request
+        data = self.generate_transfer_data(
+            source=f'transferTypesForm:{j_idt}',
+            render='transfersForm transferTypesForm',
+            additional_fields={
+                f'transferTypesForm:{j_idt}': f'transferTypesForm:{j_idt}',
+                'transferTypesForm': 'transferTypesForm'
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data)
+        
+        j_idt_1 = findall(r'<script id="transfersForm:(j_idt\d+)"', resp.text)[0]
+        j_idt_2 = findall(r'<button id="transfersForm:(j_idt\d+)"', resp.text)[0]
+
+        # Second POST request
+        common_data = {
+            'transfersForm': 'transfersForm',
+            'transfersForm:sourcesMenu_focus': '',
+            'transfersForm:sourcesMenu_input': self.rip,
+            'transfersForm:externalCardDetail:cardParametersForm': 'transfersForm:externalCardDetail:cardParametersForm',
+            'transfersForm:targetOtherCardAccount': rip_dest,
+            'transfersForm:paymentAmount_input': str(float(amount)),
+        }
+
+        data = self.generate_transfer_data(
+            source=f'transfersForm:{j_idt_2}',
+            render='transfersForm',
+            additional_fields={
+                f'transfersForm:{j_idt_2}': f'transfersForm:{j_idt_2}',
+                **common_data,
+                'transfersForm:paymentAmount_hinput': amount
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data, verify=False)
+        
+        j_idt_1, j_idt_2 = findall(r'<a id="transfersForm:(j_idt\d+):(j_idt\d+)"', resp.text)[0]
+        j_idt_3 = findall(r'<button id="transfersForm:(j_idt\d+)"', resp.text)[0]
+
+        # Third POST request
+        data = self.generate_transfer_data(
+            source=f'transfersForm:{j_idt_2}',
+            render='transfersForm',
+            additional_fields={
+                f'transfersForm:[{j_idt_1}]:{j_idt_2}': f'transfersForm:[{j_idt_1}]:{j_idt_2}',
+                **common_data,
+                f'transfersForm:[{j_idt_1}]:oneTimePasswordConf': ''
+            }
+        )
 
 # testing
 x = Baridi()
 if x.login():
     print(x.accounts())
+    x.transfers('00799999002450416340','500')
