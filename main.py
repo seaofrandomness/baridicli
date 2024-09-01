@@ -1,6 +1,7 @@
 from dotenv import dotenv_values
 from requests import session
 from re import findall
+import argparse
 
 
 class Baridi:
@@ -68,7 +69,7 @@ class Baridi:
         data.update(additional_fields)
         return data
 
-    def transfers(self, rip_dest: str, amount: str):
+    def transfer(self, rip_dest: str, amount: str):
         resp = self.session.get(f"{self.domain}/rb/web/pages/transfers.xhtml")
         j_idt = findall(r'<a id="transferTypesForm:(j_idt\d+)"', resp.text)[0]
 
@@ -100,8 +101,8 @@ class Baridi:
             source=f'transfersForm:{j_idt_2}',
             render='transfersForm',
             additional_fields={
-                f'transfersForm:{j_idt_2}': f'transfersForm:{j_idt_2}',
                 **common_data,
+                f'transfersForm:{j_idt_2}': f'transfersForm:{j_idt_2}',
                 'transfersForm:paymentAmount_hinput': amount
             }
         )
@@ -115,14 +116,59 @@ class Baridi:
             source=f'transfersForm:{j_idt_2}',
             render='transfersForm',
             additional_fields={
-                f'transfersForm:[{j_idt_1}]:{j_idt_2}': f'transfersForm:[{j_idt_1}]:{j_idt_2}',
                 **common_data,
-                f'transfersForm:[{j_idt_1}]:oneTimePasswordConf': ''
+                f'transfersForm:{j_idt_1}:{j_idt_2}': f'transfersForm:{j_idt_1}:{j_idt_2}',
+                f'transfersForm:{j_idt_1}:oneTimePasswordConf': ''
             }
         )
 
-# testing
-x = Baridi()
-if x.login():
-    print(x.accounts())
-    x.transfers('00799999002450416340','500')
+        # Confirm the transfer
+        otp_code = input('Enter the OTP: ')
+
+        data = self.generate_transfer_data(
+            source=f'transfersForm:{j_idt_3}',
+            render='transfersForm transferTypesForm transfersForm:operationActionGroup',
+            additional_fields={
+                **common_data,
+                f'transfersForm:{j_idt_3}': f'transfersForm:{j_idt_3}',
+                f'transfersForm:{j_idt_1}:oneTimePasswordConf': otp_code,
+                'transfersForm:paymentAmount_hinput': amount
+            }
+        )
+
+        resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data)
+
+        if 'تمت العملية' in resp.text:
+            print('Transfer successful.')
+        else:
+            print('Failed to transfer.')
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Baridi CLI")
+    
+    parser.add_argument('-t', '--transfer', action='store_true', help="Transfer operation")
+    parser.add_argument('-a', '--amount', type=str, help="Transfer amount")
+    parser.add_argument('-d', '--dest', type=str, help="Transfer destination (RIP)")
+
+    args = parser.parse_args()
+
+    if args.transfer:
+        if args.amount is None:
+            parser.error("--amount is required when --transfer is specified.")
+        if args.dest is None:
+            parser.error("--dest is required when --transfer is specified.")
+
+    return args
+
+def main(): 
+    args = parse_arguments()
+    baridi = Baridi()
+
+    if baridi.login():
+        print(baridi.accounts())
+        
+        if args.transfer:
+            baridi.transfer(args.dest, args.amount)
+
+if __name__ == "__main__":
+    main()
