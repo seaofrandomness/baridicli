@@ -1,7 +1,7 @@
 from dotenv import dotenv_values
 from requests import session
 from re import findall
-import argparse
+from argparse import ArgumentParser
 
 
 class Baridi:
@@ -106,7 +106,7 @@ class Baridi:
                 'transfersForm:paymentAmount_hinput': amount
             }
         )
-        resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data, verify=False)
+        resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data)
 
         j_idt_1, j_idt_2 = findall(r'<a id="transfersForm:(j_idt\d+):(j_idt\d+)"', resp.text)[0]
         j_idt_3 = findall(r'<button id="transfersForm:(j_idt\d+)"', resp.text)[0]
@@ -139,8 +139,8 @@ class Baridi:
         resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data)
 
         success_strings = [
-                'تمت العملية',
-                'Transfer done. Thank you!',
+            'تمت العملية',
+            'Transfer done. Thank you!',
         ]
 
         if any(substring in resp.text for substring in success_strings):
@@ -150,7 +150,7 @@ class Baridi:
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Baridi CLI")
+    parser = ArgumentParser(description="Baridi CLI")
 
     parser.add_argument('-t', '--transfer', action='store_true', help="Transfer operation")
     parser.add_argument('-a', '--amount', type=str, help="Transfer amount")
