@@ -57,7 +57,7 @@ class Baridi:
         self.rip = findall(r"class=\"link\s*text text--h4-header\s*\">(\d{20})", resp.text)[0]
         balance = findall(r"<div class=\"dir-ltr\">(.*\.\d{2}\s*DZD)", resp.text)[0]
         return (self.rip, balance)
-    
+
     def generate_transfer_data(self, source: str, render: str, additional_fields: dict):
         data = {
             'javax.faces.partial.ajax': 'true',
@@ -83,7 +83,7 @@ class Baridi:
             }
         )
         resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data)
-        
+
         j_idt_1 = findall(r'<script id="transfersForm:(j_idt\d+)"', resp.text)[0]
         j_idt_2 = findall(r'<button id="transfersForm:(j_idt\d+)"', resp.text)[0]
 
@@ -107,7 +107,7 @@ class Baridi:
             }
         )
         resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data, verify=False)
-        
+
         j_idt_1, j_idt_2 = findall(r'<a id="transfersForm:(j_idt\d+):(j_idt\d+)"', resp.text)[0]
         j_idt_3 = findall(r'<button id="transfersForm:(j_idt\d+)"', resp.text)[0]
 
@@ -138,14 +138,20 @@ class Baridi:
 
         resp = self.session.post(f"{self.domain}/rb/web/pages/transfers.xhtml", data=data)
 
-        if 'تمت العملية' in resp.text:
+        success_strings = [
+                'تمت العملية',
+                'Transfer done. Thank you!',
+        ]
+
+        if any(substring in resp.text for substring in success_strings):
             print('Transfer successful.')
         else:
             print('Failed to transfer.')
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Baridi CLI")
-    
+
     parser.add_argument('-t', '--transfer', action='store_true', help="Transfer operation")
     parser.add_argument('-a', '--amount', type=str, help="Transfer amount")
     parser.add_argument('-d', '--dest', type=str, help="Transfer destination (RIP)")
@@ -160,15 +166,17 @@ def parse_arguments():
 
     return args
 
-def main(): 
+
+def main():
     args = parse_arguments()
     baridi = Baridi()
 
     if baridi.login():
         print(baridi.accounts())
-        
+
         if args.transfer:
             baridi.transfer(args.dest, args.amount)
+
 
 if __name__ == "__main__":
     main()
