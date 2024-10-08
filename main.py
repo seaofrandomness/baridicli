@@ -260,7 +260,7 @@ class Baridi:
         resp = self.session.post(f"{self.domain}/rb/web/pages/payments.xhtml", data=data)
 
         success_strings = [
-            'تمت العملية',
+            'تمت عملية الدفع',
             'Payment done.',
         ]
 
