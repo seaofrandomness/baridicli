@@ -149,12 +149,135 @@ class Baridi:
             print('Failed to transfer.')
 
 
+    def verify_phone(self, phone:str):
+        if len(phone) == 10 and phone.isdigit():
+            if phone[:2] == '05':
+                return 0 # ooredoo
+            elif phone[:2] == '06':
+                return 1 # mobilis
+            elif phone[:2] == '07':
+                return 2 # djezzy
+
+        raise ValueError("--phone must be a valid 10 digits phone number.")
+
+
+    def flexy(self, phone: str, amount: str):
+        operator = self.verify_phone(phone)
+        phone = f'213{phone[1:]}'
+        resp = self.session.get(f"{self.domain}/rb/web/pages/payments.xhtml")
+        j_idt_1 = findall(r'<a id="paymentsForm:(j_idt\d+:\d:j_idt\d+)"', resp.text)[0]
+        j_idt_2 = findall(r'<div id="paymentsForm:(j_idt\d+)"', resp.text)[0]
+
+        # First POST request
+        data = self.generate_transfer_data(
+            source=f'paymentsForm:{j_idt_1}',
+            render='paymentsForm',
+            additional_fields={
+                'javax.faces.partial.execute': f'paymentsForm:{j_idt_1}',
+                'primefaces.resetvalues': 'true',
+                'javax.faces.behavior.event':'click',
+                'javax.faces.partial.event':'click',
+                'paymentsForm': 'paymentsForm',
+                f'payments:{j_idt_2}:regions_focus': '',
+                f'paymentsForm:{j_idt_2}:filterAllProviderValue':'',
+                f'paymentsForm:{j_idt_2}_active': '-1',
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/payments.xhtml", data=data)
+
+        # Second POST request
+        data = self.generate_transfer_data(
+            source=f'paymentsForm:{j_idt_1}',
+            render='paymentsForm',
+            additional_fields={
+                'javax.faces.behavior.event':'click',
+                'javax.faces.partial.event':'click',
+                'paymentsForm': 'paymentsForm',
+                f'payments:{j_idt_2}:regions_focus': '',
+                f'paymentsForm:{j_idt_2}:filterAllProviderValue':'',
+                f'paymentsForm:{j_idt_2}_active': '-1',
+                f'paymentsForm:{j_idt_1}': f'paymentsForm:{j_idt_1}',
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/payments.xhtml", data=data)
+        j_idt_3 = findall(r'<a id="paymentsForm:(j_idt\d+:\d:j_idt\d+)"', resp.text)[operator]
+        j_idt_4 = findall(r'<div id="paymentsForm:(j_idt\d+)"', resp.text)[0]
+
+        # Third POST request
+        data = self.generate_transfer_data(
+            source=f'paymentsForm:{j_idt_3}',
+            render='paymentsForm',
+            additional_fields={
+                'paymentsForm': 'paymentsForm',
+                f'paymentsForm:{j_idt_3}': f'paymentsForm:{j_idt_3}',
+                f'paymentsForm:{j_idt_4}:regionList_focus': '',
+                f'paymentsForm:{j_idt_4}:filterProviderValue':'',
+                f'paymentsForm:{j_idt_4}_active': '-1',
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/payments.xhtml", data=data)
+        j_idt_5 = findall(r'<button id="paymentsForm:(j_idt\d+)"', resp.text)[0]
+        j_idt_6 = findall(r'for="paymentsForm:(j_idt\d+:\d:)phoneField"', resp.text)[0]
+        source = findall(r'<option value="(\b\d{16}\b)"', resp.text)[0]
+
+        # Fourth POST request
+        data = self.generate_transfer_data(
+            source=f'paymentsForm:{j_idt_5}',
+            render='paymentsForm',
+            additional_fields={
+                'paymentsForm': 'paymentsForm',
+                f'paymentsForm:{j_idt_5}': f'paymentsForm:{j_idt_5}',
+                'paymentsForm:sourcesMenu_focus': '',
+                'paymentsForm:sourcesMenu_input': source,
+                'paymentsForm:paymentExternalCardDetail:cardParametersForm': 'paymentsForm:paymentExternalCardDetail:cardParametersForm',
+                'paymentsForm:paymentAmount_input': f'{amount}.00',
+                'paymentsForm:paymentAmount_hinput': amount,
+                f'paymentsForm:{j_idt_6}phoneField': phone,
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/payments.xhtml", data=data)
+        j_idt_7 = findall(r'<button id="paymentsForm:(j_idt\d+)"', resp.text)[0]
+        j_idt_8 = findall(r'for="paymentsForm:(j_idt\d+):oneTimePasswordConf"', resp.text)[0]
+
+        # Confirm the flexy operation
+        otp_code = input('Enter the OTP: ')
+
+        data = self.generate_transfer_data(
+            source=f'paymentsForm:{j_idt_7}',
+            render='paymentsForm',
+            additional_fields={
+                'paymentsForm': 'paymentsForm',
+                f'paymentsForm:{j_idt_7}': f'paymentsForm:{j_idt_7}',
+                'paymentsForm:sourcesMenu_focus': '',
+                'paymentsForm:sourcesMenu_input': source,
+                'paymentsForm:paymentExternalCardDetail:cardParametersForm': 'paymentsForm:paymentExternalCardDetail:cardParametersForm',
+                'paymentsForm:paymentAmount_input': f'{amount}.00',
+                'paymentsForm:paymentAmount_hinput': amount,
+                f'paymentsForm:{j_idt_6}phoneField': phone,
+                f'paymentsForm:{j_idt_8}:oneTimePasswordConf': {otp_code},
+            }
+        )
+        resp = self.session.post(f"{self.domain}/rb/web/pages/payments.xhtml", data=data)
+
+        success_strings = [
+            'تمت عملية الدفع',
+            'Payment done.',
+        ]
+
+        if any(substring in resp.text for substring in success_strings):
+            print('Flexy operation successful.')
+        else:
+            print('Flexy operation failed.')
+
+
 def parse_arguments():
     parser = ArgumentParser(description="Baridi CLI")
 
     parser.add_argument('-t', '--transfer', action='store_true', help="Transfer operation")
     parser.add_argument('-a', '--amount', type=str, help="Transfer amount")
     parser.add_argument('-d', '--dest', type=str, help="Transfer destination (RIP)")
+    parser.add_argument('-f', '--flexy', action='store_true', help="Flexy operation")
+    parser.add_argument('-p', '--phone', type=str, help="Flexy destination (phone number)")
 
     args = parser.parse_args()
 
@@ -163,6 +286,11 @@ def parse_arguments():
             parser.error("--amount is required when --transfer is specified.")
         if args.dest is None:
             parser.error("--dest is required when --transfer is specified.")
+    elif args.flexy:
+        if args.amount is None:
+            parser.error("--amount is required when --flexy is specified.")
+        if args.phone is None:
+            parser.error("--phone is required when --flexy is specified.")
 
     return args
 
@@ -176,6 +304,8 @@ def main():
 
         if args.transfer:
             baridi.transfer(args.dest, args.amount)
+        elif args.flexy:
+            baridi.flexy(args.phone, args.amount)
 
 
 if __name__ == "__main__":
