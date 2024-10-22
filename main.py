@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from banks.baridi.baridi import Baridi
+from banks.baridi import Baridi
 
 
 def parse_arguments():
